@@ -21,12 +21,13 @@ def send_otp():
 
         message = f"Your OTP for verification is: {otp}"
         payload = {
-            "to": f"+91{phone_number}",
-            "content": message,
-            "from": D7_SENDER_ID,
-            "dlr": "yes",
-            "dlr-url": "https://yourdomain.com/otp-status",
-            "sms_type": "plain"
+            "messages": [
+                {
+                    "to": f"+91{phone_number}",
+                    "content": message,
+                    "from": D7_SENDER_ID
+                }
+            ]
         }
 
         headers = {
