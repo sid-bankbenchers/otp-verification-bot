@@ -6,13 +6,12 @@ import os
 app = Flask(__name__)
 otp_store = {}  # Temporary in-memory store for OTPs
 
-# === Replace with your D7 settings ===
-D7_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRoLWJhY2tlbmQ6YXBwIiwic3ViIjoiMzQ2MTJhMjUtYzgzMS00ZjIyLWEwODktODIyMDE0MTU0NzdmIn0.fuGbHVdcHH6JAO5rPyG4ErAG59fVwU8bQtSWI0Ls49w"
-D7_SENDER_ID = "SMSInfo"  # Must be approved by D7 (e.g., "SMSInfo")
-D7_URL = "https://api.d7networks.com/messages/v1/send"  # D7 base URL
+# === D7 API Settings ===
+D7_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRoLWJhY2tlbmQ6YXBwIiwic3ViIjoiNjlkMGE3OWYtNTE1Ni00Y2YwLWEwMGEtZjgxZTNlMDg3ZmUzIn0.Yl5Ers65atUJjSmEhubqexnBngTVL7z7uaKQNg_ggPI"  # REPLACE THIS with your latest D7 key
+D7_SENDER_ID = "SMSInfo"  # Must be pre-approved by D7
+D7_URL = "https://api.d7networks.com/messages/v1/send"
 
-# === Step 1: Send OTP ===
-@app.route('/send_otp', methods=['POST'])
+# === Send OTP Handler ===
 def send_otp():
     req = request.get_json()
     try:
@@ -35,18 +34,19 @@ def send_otp():
         response = requests.post(D7_URL, json=payload, headers=headers)
 
         if response.status_code == 200:
-            reply = f"OTP sent to {phone_number}. Please enter the OTP to verify."
+            reply = f"✅ OTP sent to {phone_number}. Please enter the OTP to verify."
         else:
-            print("D7 ERROR:", response.status_code, response.text)  # log D7 error
-            reply = f"Failed to send OTP. D7 API responded with {response.status_code}: {response.text}"
+            print("D7 ERROR:", response.status_code, response.text)
+            reply = f"❌ Failed to send OTP. D7 API responded with {response.status_code}: {response.text}"
 
     except Exception as e:
-        reply = "Error processing the request."
+        print("Exception in send_otp:", e)
+        reply = "⚠️ Error processing the OTP request."
 
     return jsonify({"fulfillmentText": reply})
 
-# === Step 2: Verify OTP ===
-@app.route('/verify_otp', methods=['POST'])
+
+# === Verify OTP Handler ===
 def verify_otp():
     req = request.get_json()
     try:
@@ -62,11 +62,27 @@ def verify_otp():
             reply = "❌ Invalid OTP. Please try again."
 
     except Exception as e:
-        reply = "Error verifying OTP."
+        print("Exception in verify_otp:", e)
+        reply = "⚠️ Error verifying the OTP."
 
     return jsonify({"fulfillmentText": reply})
 
-# === Run locally ===
+
+# === Dispatcher for Dialogflow ===
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    req = request.get_json()
+    intent = req['queryResult']['intent']['displayName'].lower()
+
+    if intent == 'number':
+        return send_otp()
+    elif intent == 'otp':
+        return verify_otp()
+    else:
+        return jsonify({"fulfillmentText": "❓ I didn't understand that request."})
+
+
+# === Run the Flask app ===
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
