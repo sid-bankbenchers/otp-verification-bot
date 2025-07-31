@@ -7,12 +7,12 @@ import os
 
 app = FastAPI()
 
-# In-memory OTP store: {phone: (otp, expiry_time)
+# In-memory OTP store: {phone: (otp, expiry_time)}
 otp_store = {}
 
-# D7 credentials (store these in environment variables ideally)
-D7_API_KEY = "YOUR_D7_API_KEY"
-D7_URL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRoLWJhY2tlbmQ6YXBwIiwic3ViIjoiNjlkMGE3OWYtNTE1Ni00Y2YwLWEwMGEtZjgxZTNlMDg3ZmUzIn0.Yl5Ers65atUJjSmEhubqexnBngTVL7z7uaKQNg_ggPI"
+# === Configuration ===
+D7_API_URL = "https://api.d7networks.com/messages/v1/send"
+D7_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRoLWJhY2tlbmQ6YXBwIiwic3ViIjoiNjlkMGE3OWYtNTE1Ni00Y2YwLWEwMGEtZjgxZTNlMDg3ZmUzIn0.Yl5Ers65atUJjSmEhubqexnBngTVL7z7uaKQNg_ggPI"
 D7_ORIGINATOR = "SignOTP"
 
 # === Helpers ===
@@ -42,10 +42,10 @@ def send_otp_via_sms(phone_number: str, otp: str):
         "Authorization": f"Bearer {D7_API_KEY}"
     }
 
-    response = requests.post(D7_URL, json=payload, headers=headers)
+    response = requests.post(D7_API_URL, json=payload, headers=headers)
     return response.status_code, response.text
 
-# === Webhook Model ===
+# === Dialogflow Request Model ===
 
 class DialogflowRequest(BaseModel):
     queryResult: dict
@@ -61,30 +61,36 @@ async def webhook_handler(req: Request):
     phone = parameters.get("phone")
     user_otp = parameters.get("otp")
 
-    if intent == "number":
+    if intent == "number":  # Send OTP intent
+        if not phone:
+            return {"fulfillmentText": "⚠️ Please provide a valid phone number."}
+
         otp = generate_otp()
         otp_store[phone] = (otp, time.time() + 300)  # 5-minute expiry
-        status, msg = send_otp_via_sms(phone, otp)
 
-        if status == 200:
+        status, msg = send_otp_via_sms(phone, otp)
+        if status == 200 or status == 202:
             return {"fulfillmentText": f"✅ OTP sent to {phone}. Please enter the OTP to verify."}
         else:
             return {"fulfillmentText": f"❌ Failed to send OTP. D7 API responded with {status}: {msg}"}
 
-    elif intent == "otp":
+    elif intent == "otp":  # Verify OTP intent
+        if not phone or not user_otp:
+            return {"fulfillmentText": "⚠️ Please provide both phone number and OTP."}
+
         stored = otp_store.get(phone)
         if not stored:
             return {"fulfillmentText": "⚠️ No OTP was requested for this number. Please try again."}
-        
+
         otp, expiry = stored
         if time.time() > expiry:
+            del otp_store[phone]
             return {"fulfillmentText": "⚠️ OTP expired. Please request a new one."}
-        
+
         if user_otp == otp:
-            del otp_store[phone]  # clear used OTP
+            del otp_store[phone]
             return {"fulfillmentText": "✅ OTP verified successfully!"}
         else:
             return {"fulfillmentText": "❌ Incorrect OTP. Please try again."}
 
-    else:
-        return {"fulfillmentText": "⚠️ Unrecognized intent."}
+    return {"fulfillmentText": "⚠️ Unrecognized intent."}
