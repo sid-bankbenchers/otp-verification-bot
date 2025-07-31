@@ -25,12 +25,15 @@ def send_otp():
             "content": message,
             "from": D7_SENDER_ID,
             "dlr": "yes",
-            "dlr-url": "https://yourdomain.com/otp-status",  # Optional
-            "sms_type": "plain",
-            "api-key": D7_API_KEY
+            "dlr-url": "https://yourdomain.com/otp-status",
+            "sms_type": "plain"
         }
 
-        headers = {'Content-Type': 'application/json'}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {D7_API_KEY}'
+        }
+
         response = requests.post(D7_URL, json=payload, headers=headers)
 
         if response.status_code == 200:
@@ -44,6 +47,7 @@ def send_otp():
         reply = "⚠️ Error processing the OTP request."
 
     return jsonify({"fulfillmentText": reply})
+
 
 
 # === Verify OTP Handler ===
