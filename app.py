@@ -37,7 +37,8 @@ def send_otp():
         if response.status_code == 200:
             reply = f"OTP sent to {phone_number}. Please enter the OTP to verify."
         else:
-            reply = "Failed to send OTP. Please try again."
+            print("D7 ERROR:", response.status_code, response.text)  # log D7 error
+            reply = f"Failed to send OTP. D7 API responded with {response.status_code}: {response.text}"
 
     except Exception as e:
         reply = "Error processing the request."
